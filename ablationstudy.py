@@ -142,6 +142,27 @@ def parallel_CNN_LSTM(input_shape, n_outputs):
 
     # First 1D CNN branch
     x1 = Conv1D(64, kernel_size=3, activation='relu')(inputs)
+    x1 = MaxPooling1D(pool_size=2)(x1)  # Modify the pool_size to 2 instead of (2, 1)
+    x1 = LSTM(64)(x1)
+
+    # Second 1D CNN branch
+    x2 = Conv1D(64, kernel_size=5, activation='relu')(inputs)
+    x2 = MaxPooling1D(pool_size=2)(x2)  # Modify the pool_size to 2 instead of (2, 1)
+    x2 = LSTM(64)(x2)
+
+    # Concatenate the outputs from both branches
+    x = concatenate([x1, x2])
+
+    x = Dropout(0.2)(x)
+    outputs = Dense(n_outputs, activation='softmax')(x)
+    model = Model(inputs=inputs, outputs=outputs)
+    return model
+
+def parallel_CNN_LSTM_old(input_shape, n_outputs):
+    inputs = Input(shape=input_shape)
+
+    # First 1D CNN branch
+    x1 = Conv1D(64, kernel_size=3, activation='relu')(inputs)
     x1 = MaxPooling1D(2)(x1)
     x1 = LSTM(64)(x1)
 
@@ -586,7 +607,7 @@ if __name__ == "__main__":
 #    - Median Single Prediction Time (msec): [Median Single Prediction Time Result]
 #    - Mean Required Memory (Mb): [Mean Required Memory Result]
 #    - Median Required Memory (Mb): [Median Required Memory Result]
-#    - Mean Model Parameters (K): [Mean Model Parameters Result]
+#    - Mean Model Parameters (K): [Mean Model Parameters Result] 
 #    - Median Model Parameters (K): [Median Model Parameters Result]
 
 #    Window Size: 6
