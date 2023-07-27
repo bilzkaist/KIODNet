@@ -1,7 +1,7 @@
 import tensorflow as tf
 from tensorflow.keras.models import Model
 
-def saveModelLite(trained_model, model_Path, filename='bd_model.tflite'):
+def saveModelLite(trained_model, model_Path, filename):
     converter = tf.lite.TFLiteConverter.from_keras_model(trained_model)
     try:
         # Convert the model to a TFLite model    
@@ -33,8 +33,9 @@ def saveModelLite(trained_model, model_Path, filename='bd_model.tflite'):
 
 # Main code
 if __name__ == "__main__":
-    dataset_Path = '/home/bilz/IODNET/Datasets/'
-    model_Path = '/home/bilz/IODNET/models/'
+    dataset_Path = '/home/bilz/air/Datasets/'
+    model_Path = '/home/bilz/air/models/'
+    modellite_Path = '/home/bilz/air/modelslite/'
     dataset_Path_Full = dataset_Path + 'validatingData.csv'
     DATA_PATH = dataset_Path_Full
     outputs_Number = 2
@@ -43,5 +44,5 @@ if __name__ == "__main__":
     trained_model = tf.keras.models.load_model(model_Path + 'bd_KIODNet_CLP_V1_W_6.h5')
 
     # Convert and Save the Lite version of the trained model
-    saveModelLite(trained_model, model_Path + 'bd_KIODNet_CLP_V1_W_6.tflite')
+    saveModelLite(trained_model, modellite_Path , 'bd_KIODNet_CLP_V1_W_6.tflite')
 

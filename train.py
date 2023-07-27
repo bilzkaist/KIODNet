@@ -159,7 +159,7 @@ def parallel_CNN_LSTM(input_shape, n_outputs):
     return model
 
 # Function to train the model using K-fold cross-validation
-def trainingModel(X, y, fold_number=6, epoch_number=100, batch_number=64, model_path="models/"):
+def trainingModel(model_path, X, y, fold_number=6, epoch_number=100, batch_number=64):
     # Create KFold instance
     kfold = KFold(n_splits=fold_number, shuffle=True)
 
@@ -307,8 +307,8 @@ def drawConfusionMatrix(myModel, X_test, y_test):
 
 # Main code
 if __name__ == "__main__":
-    dataset_Path = '/home/bilz/IODNET/Datasets/'
-    model_Path = '/home/bilz/IODNET/models/'
+    dataset_Path = '/home/bilz/air/Datasets/'
+    model_Path = '/home/bilz/air/models/'
     dataset_Path_Full = dataset_Path + 'trainingTestingData.csv'
     DATA_PATH = dataset_Path_Full
     epoch_Number = 100
@@ -335,7 +335,7 @@ if __name__ == "__main__":
     X_train, X_test, y_train, y_test, kfold = splitDataWithCrossValidation(X, y, fold_Number)
 
     # Train the model and get the required outputs
-    trained_model, test_acc, test_f1, mean_prediction_time, median_prediction_time, mean_training_time, median_training_time, total_memory_mb, total_params_kb = trainingModel(X_train, y_train)
+    trained_model, test_acc, test_f1, mean_prediction_time, median_prediction_time, mean_training_time, median_training_time, total_memory_mb, total_params_kb = trainingModel(model_Path, X_train, y_train)
 
     print(f"Accuracy: {test_acc}")
     print(f"F1-score: {test_f1}")

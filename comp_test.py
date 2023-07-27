@@ -99,8 +99,6 @@ def balanceData(df, data, mode=True):
 
     return balanced_data
 
-
-
 def encodedData(balanced_data):
     # Encoding the Data with suitable labels
     label = LabelEncoder()
@@ -161,119 +159,147 @@ def get_frames(df, frame_size, hop_size, n_features=8):
 
     return frames, labels
 
-def parallel_CNN_LSTM(input_shape, n_outputs):
-    inputs = Input(shape=input_shape)
+def evalmodellite(trained_Model_Lite_Path, X, y):
+    # Load the TensorFlow Lite model.
+    interpreter = tf.lite.Interpreter(trained_Model_Lite_Path)
+    interpreter.allocate_tensors()
 
-    # First 1D CNN branch
-    x1 = Conv1D(64, kernel_size=3, activation='relu')(inputs)
-    x1 = MaxPooling1D(2)(x1)
-    x1 = LSTM(64)(x1)
+    # Get the input and output details.
+    input_details = interpreter.get_input_details()
+    output_details = interpreter.get_output_details()
 
-    # Second 1D CNN branch
-    x2 = Conv1D(64, kernel_size=5, activation='relu')(inputs)
-    x2 = MaxPooling1D(2)(x2)
-    x2 = LSTM(64)(x2)
+    # Load the test data.
+    X_test = X 
+    y_test = y 
 
-    # Concatenate the outputs from both branches
-    x = concatenate([x1, x2])
+    # Test the model on the test data.
+    correct = 0
+    y_pred = []
+    for i in range(len(X_test)):
+        # Preprocess the input data.
+        input_data = X_test[i].astype(np.float32)
+        input_data = np.expand_dims(input_data, axis=0)
 
-    x = Dropout(0.2)(x)
-    outputs = Dense(n_outputs, activation='softmax')(x)
-    model = Model(inputs=inputs, outputs=outputs)
-    return model
+        # Set the input tensor.
+        interpreter.set_tensor(input_details[0]['index'], input_data)
 
-def drawConfusionMatrix(myModel, X_test, y_test):
-    class_labels = ['Outdoor', 'Indoor']
-    # Measure the time it takes to predict a single sample for multiple steps
-    prediction_times = []
-    for _ in range(10):  # Replace 10 with the number of steps you want to measure
-        start_time = time.time()
-        predict_x = myModel.predict(X_test)
-        end_time = time.time()
+        # Run inference.
+        interpreter.invoke()
 
-        # Calculate the prediction time for each step
-        prediction_time = end_time - start_time
-        prediction_times.append(prediction_time)
+        # Get the output tensor.
+        output_data = interpreter.get_tensor(output_details[0]['index'])
+        prediction = np.argmax(output_data)
 
-    # Calculate mean, median, and standard deviation of prediction times
-    mean_prediction_time = np.mean(prediction_times)
-    median_prediction_time = np.median(prediction_times)
-    std_prediction_time = np.std(prediction_times)
+        # Check if the prediction is correct.
+        if prediction == (y_test[i]):
+            correct += 1
+        y_pred.append(prediction)
 
-    print('Mean Prediction Time:', mean_prediction_time, 'seconds')
-    print('Median Prediction Time:', median_prediction_time, 'seconds')
-    print('Standard Deviation of Prediction Time:', std_prediction_time, 'seconds')
+    accuracy = correct / len(X_test)
+    print("Accuracy: {:.2f}%".format(accuracy * 100))
 
-    y_pred = np.argmax(predict_x, axis=1)
+    # Calculate the F1-Score.
+    f1 = f1_score(y_test, y_pred)
+    print("F1-Score: {:.2f}".format(f1*100))
+
+    # Convert y_test from one-hot encoded array to 1D array of labels.
+    y_test_labels = np.argmax(np.expand_dims(y_test, axis=0), axis=1)
+
+    # confusion matrix
+    LABELS = [
+        'Indoor',
+        'Outdoor'
+    ]
+    class_labels = LABELS
     mat = confusion_matrix(y_test, y_pred)
     sns.heatmap(mat, xticklabels=class_labels, yticklabels=class_labels, annot=True, linewidths=0.1, fmt='d', cmap='YlGnBu')
-    plt.title("Confusion matrix", fontsize=15)
-    plt.ylabel('True label')
-    plt.xlabel('Predicted label')
+    # plt.title("Confusion matrix", fontsize=15)
+    # plt.ylabel('True label')
+    # plt.xlabel('Predicted label')
+    # plt.show()
 
-    # Calculate ROC curve and AUC
-    y_prob = predict_x[:, 1]  # Probability for the positive class (Indoor)
-    fpr, tpr, thresholds = roc_curve(y_test, y_prob, pos_label=1)
-    roc_auc = auc(fpr, tpr)
+    return accuracy, f1
 
-    # Plot ROC curve
+def balanced_data_experiments(trained_Model_Lite_Path, dataset_Path_Full, num_experiments, balFlag):
+    accuracy_results = []
+    f1_results = []
+
+    for i in range(num_experiments):
+        # Balance the data
+        print("Testing no ",  i , " and BalFlag = ", balFlag)
+        balanced_data = balanceData(df, data, mode=balFlag)  # Balanced dataset
+        # balanced_data = balanceData(df, data, mode=False)  # Unbalanced dataset
+
+        # Encode the data
+        encoded_data = encodedData(balanced_data)
+
+        # Standardize the data
+        scaled_X, X, y = standardizeData(encoded_data)
+
+        # Get framed data
+        scaled_X, X, y = framedData(scaled_X, X, y)
+
+        # Evaluate the model and store the results
+        accuracy, f1 = evalmodellite(trained_Model_Lite_Path, X, y)
+        accuracy_results.append(accuracy)
+        f1_results.append(f1)
+
+    return accuracy_results, f1_results
+
+def save_results_to_file(results_file, data):
+    with open(results_file, 'w') as f:
+        for item in data:
+            f.write(str(item) + "\n")
+
+def plot_and_save_graphs(results_file, title):
+    data = np.loadtxt(results_file)
+
+    mean = np.mean(data)
+    median = np.median(data)
+    std = np.std(data)
+
     plt.figure()
-    plt.plot(fpr, tpr, color='darkorange', lw=2, label='ROC curve (area = {:.2f})'.format(roc_auc))
-    plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
-    plt.xlim([0.0, 1.0])
-    plt.ylim([0.0, 1.05])
-    plt.xlabel('False Positive Rate')
-    plt.ylabel('True Positive Rate')
-    plt.title('Receiver Operating Characteristic (ROC)')
-    plt.legend(loc="lower right")
-    plt.show()
-
-
-
+    plt.hist(data, bins=20, color='blue', alpha=0.7)
+    plt.axvline(mean, color='k', linestyle='dashed', linewidth=1.5, label='Mean')
+    plt.axvline(median, color='r', linestyle='dashed', linewidth=1.5, label='Median')
+    plt.legend()
+    plt.title(title)
+    plt.xlabel('Values')
+    plt.ylabel('Frequency')
+    plt.savefig(title + '.png')
 
 # Main code
 if __name__ == "__main__":
     dataset_Path = '/home/bilz/air/Datasets/'
-    model_Path = '/home/bilz/air/models/'
+    modellite_Path = '/home/bilz/air/modelslite/'
     dataset_Path_Full = dataset_Path + 'validatingData.csv'
-    DATA_PATH = dataset_Path_Full
+    trained_Model_Lite_Path = modellite_Path + 'bd_KIODNet_CLP_V1_W_6.tflite'
     outputs_Number = 2
 
     # Preprocess data
-    df, data = preprocessData(DATA_PATH)
+    df, data = preprocessData(dataset_Path_Full)
 
-    # Balance the data
-    balanced_data = balanceData(df, data, True)
+    # Run 100 experiments with balanced dataset
+    num_experiments = 100
+    balanced_accuracy_results, balanced_f1_results = balanced_data_experiments(trained_Model_Lite_Path, dataset_Path_Full, num_experiments, True)
 
-    # Encode the data
-    encoded_data = encodedData(balanced_data)
+    # Save results to text files
+    save_results_to_file('results_balanced_accuracy.txt', balanced_accuracy_results)
+    save_results_to_file('results_balanced_f1.txt', balanced_f1_results)
 
-    # Standardize the data
-    scaled_X, X, y = standardizeData(encoded_data)
+    # Plot and save graphs for balanced dataset
+    plot_and_save_graphs('results_balanced_accuracy.txt', 'Accuracy with Balanced Dataset over 100 tests')
+    plot_and_save_graphs('results_balanced_f1.txt', 'F1-Score with Balanced Dataset over 100 tests')
 
-    # Get framed data
-    scaled_X, X, y = framedData(scaled_X, X, y)
+    # Clear previous results and run 100 experiments with unbalanced dataset
+    balanced_accuracy_results.clear()
+    balanced_f1_results.clear()
+    unbalanced_accuracy_results, unbalanced_f1_results = balanced_data_experiments(trained_Model_Lite_Path, dataset_Path_Full, num_experiments, False)
 
-    # Load the trained model
-    trained_model = load_model(model_Path + "bd_KIODNet_CLP_V1_W_6.h5")
+    # Save results to text files
+    save_results_to_file('results_unbalanced_accuracy.txt', unbalanced_accuracy_results)
+    save_results_to_file('results_unbalanced_f1.txt', unbalanced_f1_results)
 
-    # Evaluate the model on the validation dataset
-    predict_x = trained_model.predict(X)
-    y_pred = np.argmax(predict_x, axis=1)
-
-    if len(y.shape) > 1 and y.shape[1] > 1:
-        y_true = np.argmax(y, axis=1)
-    else:
-        y_true = y
-
-    test_acc = accuracy_score(y_true, y_pred)
-    test_f1 = f1_score(y_true, y_pred, average='weighted')
-
-    print(f"Accuracy: {test_acc}")
-    print(f"F1-score: {test_f1}")
-    
-
-    # Display confusion matrix and ROC curve
-    drawConfusionMatrix(trained_model, X, y)
-
-    
+    # Plot and save graphs for unbalanced dataset
+    plot_and_save_graphs('results_unbalanced_accuracy.txt', 'Accuracy with Unbalanced Dataset over 100 tests')
+    plot_and_save_graphs('results_unbalanced_f1.txt', 'F1-Score with Unbalanced Dataset over 100 tests')
