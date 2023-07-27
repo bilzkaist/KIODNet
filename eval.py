@@ -7,6 +7,7 @@ import time
 import seaborn as sns
 import os
 import psutil
+import tensorflow as tf
 from tensorflow.keras.layers import Input, Conv1D, MaxPooling1D, LSTM, Dense, Dropout, Flatten, concatenate
 from tensorflow.keras.models import Model, load_model
 from tensorflow.keras.optimizers import Adam
@@ -227,7 +228,90 @@ def drawConfusionMatrix(myModel, X_test, y_test):
     plt.legend(loc="lower right")
     plt.show()
 
+def evalmodellite(trained_Model_Lite_Path, X, y):
+    # Load the TensorFlow Lite model.
+    interpreter = tf.lite.Interpreter(trained_Model_Lite_Path)
+    interpreter.allocate_tensors()
 
+    # Get the input and output details.
+    input_details = interpreter.get_input_details()
+    output_details = interpreter.get_output_details()
+
+
+
+    # Load the test data.
+    X_test = X 
+    y_test = y 
+
+
+
+    # Test the model on the test data.
+    correct = 0
+    y_pred = []
+    for i in range(len(X_test)):
+        # Preprocess the input data.
+        input_data = X_test[i].astype(np.float32)
+        input_data = np.expand_dims(input_data, axis=0)
+
+        # Set the input tensor.
+        interpreter.set_tensor(input_details[0]['index'], input_data)
+
+        # Run inference.
+        interpreter.invoke()
+
+        # Get the output tensor.
+        output_data = interpreter.get_tensor(output_details[0]['index'])
+        prediction = np.argmax(output_data)
+
+        # Check if the prediction is correct.
+        if prediction == (y_test[i]):
+            correct += 1
+        y_pred.append(prediction)
+
+    accuracy = correct / len(X_test)
+    print("Accuracy: {:.2f}%".format(accuracy * 100))
+
+def evallite(X, y):
+    
+    dataset_Path = '/home/bilz/IODNET/Datasets/'
+    model_Path = '/home/bilz/IODNET/models/'
+    dataset_Path_Full = dataset_Path + 'validatingData.csv'
+    trained_Model_Lite_Path = model_Path + 'bd_KIODNet_CLP_V1_W_6.tflite'
+    DATA_PATH = dataset_Path_Full
+    outputs_Number = 2
+
+    # Preprocess data
+    df, data = preprocessData(DATA_PATH)
+
+    # Balance the data
+    balanced_data = balanceData(df, data)
+
+    # Encode the data
+    encoded_data = encodedData(balanced_data)
+
+    # Standardize the data
+    scaled_X, X, y = standardizeData(encoded_data)
+
+    # Get framed data
+    scaled_X, X, y = framedData(scaled_X, X, y)
+
+    # Load the trained lite model
+    #modelLite = loadModelLite(model_Path + 'bd_KIODNet_CLP_V1_W_6.tflite')
+
+    interpreter = tf.lite.Interpreter(model_path=trained_Model_Lite_Path)
+    interpreter.allocate_tensors()
+
+    # Get input and output details.
+    input_details = interpreter.get_input_details()
+    output_details = interpreter.get_output_details()
+
+    # Print model summary.
+    print('Input shape:', input_details[0]['shape'])
+    print('Input type:', input_details[0]['dtype'])
+    print('Output shape:', output_details[0]['shape'])
+    print('Output type:', output_details[0]['dtype'])
+
+    evalmodellite(trained_Model_Lite_Path,X, y)
 
 
 # Main code
@@ -274,3 +358,5 @@ if __name__ == "__main__":
 
     # Display confusion matrix and ROC curve
     drawConfusionMatrix(trained_model, X, y)
+
+    evallite(X, y)
